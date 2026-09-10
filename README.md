@@ -47,3 +47,26 @@ python -c "import torch; print(torch.__version__, torch.cuda.is_available())"
 
 Confirmed working versions on this machine: MuJoCo 3.13.0, Gymnasium 1.3.0,
 Stable-Baselines3 2.9.0, PyTorch 2.14.0+cpu.
+
+## The model
+
+I'm using the simple `walker2d` MJCF model that
+ships with Gymnasium's MuJoCo envs
+(`gymnasium/envs/mujoco/assets/walker2d.xml`).
+Standard model used for biped benchmarks.
+Torso + thigh/shin/foot per side, six motors (hip, knee, ankle x2).
+
+It's planar, so forward/back and pitch only. Cuts out a whole dimension for an initial experimentation.
+
+It's copied it into `models/biped.xml` for adjustment (push force
+logic, sensors, domain randomization) without touching the installed
+package.
+
+![biped model](assets/images/biped_model.png)
+
+To look at it interactively (drag to orbit, scroll to zoom, ctrl+right-click
+drag on a body to shove it around with the mouse):
+
+```bash
+python scripts/view_model.py
+```
