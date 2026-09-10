@@ -70,3 +70,32 @@ drag on a body to shove it around with the mouse):
 ```bash
 python scripts/view_model.py
 ```
+
+## The task
+
+The goal is purely to stand still and stay on its feet while getting shoved, no walking. Base `Walker2d-v5` rewards walking forward fast, so wrote a custom env instead: `envs/biped_balance_env.py`, registered as `BipedBalance-v0`.
+
+- reward = stay alive + stay upright - control effort - distance strayed
+  from the starting spot. Zero reward for moving, and actual displacement
+  from start is penalized directly (not just velocity), to avoid slowly moving off the start location.
+- episode ends if the torso drops too low or tips past a set pitch angle.
+- every so often (random, ~1 in 250 steps) a random horizontal force (our push) hits the torso for a handful of timesteps. Magnitude and
+  direction are randomized each time.
+- the agent doesn't get to see the push force directly, only feels it
+  through the resulting joint and torso motion. A real robot wouldn't have
+  a universal "push" sensor either, so no point letting the policy
+  cheat with one in sim.
+
+Sanity check that it runs and pushes actually fire:
+
+```bash
+python -c "
+import envs, gymnasium as gym
+env = gym.make('BipedBalance-v0')
+obs, info = env.reset(seed=0)
+for _ in range(500):
+    obs, r, term, trunc, info = env.step(env.action_space.sample())
+    if term or trunc:
+        obs, info = env.reset()
+"
+```
