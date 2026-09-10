@@ -86,7 +86,7 @@ def print_console(env, info, reward, step_count):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--run-name", type=str, default="ppo_biped_balance_v2")
+    parser.add_argument("--run-name", type=str, default="ppo_biped_balance_v3")
     parser.add_argument("--episodes", type=int, default=10)
     parser.add_argument(
         "--latest-checkpoint",

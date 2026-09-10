@@ -83,6 +83,13 @@ The goal is purely to stand still and stay on its feet while getting shoved, no 
   between consecutive steps. Without it, the policy converges to just
   vibrate the ankles back and forth rapidly rather than committing to a real
   correction, since raw effort cost alone doesn't punish that.
+- there's also a direct penalty on raw joint angular velocity, separate from
+  the action-jerkiness one above, since a stiff joint can physically bounce
+  fast even when the commanded action itself isn't changing that abruptly.
+  v2 still ended up buzzing its feet even with the jerkiness penalty in
+  place (the weight was too weak next to the reward for just staying
+  alive), so v3 raised that weight a lot and added the joint velocity term
+  on top.
 - episode ends if the torso drops too low or tips past a set pitch angle.
 - every so often (random, ~1 in 250 steps) a random horizontal force (our push) hits the torso for a handful of timesteps. Magnitude and
   direction are randomized each time.
@@ -110,7 +117,7 @@ for _ in range(500):
 Using PPO (Proximal Policy Optimization) from Stable-Baselines3 out of the box.
 
 ```bash
-python scripts/train.py --timesteps 3000000 --n-envs 8 --run-name ppo_biped_balance_v2
+python scripts/train.py --timesteps 3000000 --n-envs 8 --run-name ppo_biped_balance_v3
 ```
 
 Runs 8 environments in parallel (one per CPU core) to speed up data

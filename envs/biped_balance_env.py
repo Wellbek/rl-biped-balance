@@ -37,7 +37,8 @@ class BipedBalanceEnv(MujocoEnv, utils.EzPickle):
         healthy_z_range: tuple[float, float] = (0.8, 2.0),
         healthy_angle_range: tuple[float, float] = (-1.0, 1.0),
         ctrl_cost_weight: float = 1e-3,
-        action_rate_cost_weight: float = 0.05,
+        action_rate_cost_weight: float = 0.4,
+        joint_vel_cost_weight: float = 0.01,
         push_prob: float = 1.0 / 250.0,
         push_force_range: tuple[float, float] = (50.0, 300.0),
         push_duration_steps: int = 5,
@@ -50,6 +51,7 @@ class BipedBalanceEnv(MujocoEnv, utils.EzPickle):
         self._healthy_angle_range = healthy_angle_range
         self._ctrl_cost_weight = ctrl_cost_weight
         self._action_rate_cost_weight = action_rate_cost_weight
+        self._joint_vel_cost_weight = joint_vel_cost_weight
         self._push_prob = push_prob
         self._push_force_range = push_force_range
         self._push_duration_steps = push_duration_steps
@@ -118,13 +120,27 @@ class BipedBalanceEnv(MujocoEnv, utils.EzPickle):
             np.square(action - self._prev_action)
         )
         self._prev_action = np.array(action)
+        # penalize raw joint angular velocity directly too, on top of the
+        # action-rate cost above, since a stiff joint can still physically
+        # bounce/resonate fast even when the commanded action itself is
+        # changing smoothly
+        joint_vel_cost = self._joint_vel_cost_weight * np.sum(
+            np.square(self.data.qvel[3:])
+        )
         # penalize actual distance from the starting spot, not just how
         # fast it's currently drifting, otherwise a slow wander off to the
         # side is "free" as long as it's not accelerating
         position_cost = 0.5 * abs(x_after - self._start_x)
         upright_bonus = 1.0 - abs(self.data.qpos[2])
 
-        reward = 1.0 + upright_bonus - ctrl_cost - action_rate_cost - position_cost
+        reward = (
+            1.0
+            + upright_bonus
+            - ctrl_cost
+            - action_rate_cost
+            - joint_vel_cost
+            - position_cost
+        )
         terminated = not healthy
 
         obs = self._get_obs()
