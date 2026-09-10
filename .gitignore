@@ -1,2 +1,5 @@
 __pycache__/
 *.pyc
+models/checkpoints/
+runs/
+MUJOCO_LOG.TXT

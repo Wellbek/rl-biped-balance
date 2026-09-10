@@ -37,6 +37,7 @@ class BipedBalanceEnv(MujocoEnv, utils.EzPickle):
         healthy_z_range: tuple[float, float] = (0.8, 2.0),
         healthy_angle_range: tuple[float, float] = (-1.0, 1.0),
         ctrl_cost_weight: float = 1e-3,
+        action_rate_cost_weight: float = 0.05,
         push_prob: float = 1.0 / 250.0,
         push_force_range: tuple[float, float] = (50.0, 300.0),
         push_duration_steps: int = 5,
@@ -48,6 +49,7 @@ class BipedBalanceEnv(MujocoEnv, utils.EzPickle):
         self._healthy_z_range = healthy_z_range
         self._healthy_angle_range = healthy_angle_range
         self._ctrl_cost_weight = ctrl_cost_weight
+        self._action_rate_cost_weight = action_rate_cost_weight
         self._push_prob = push_prob
         self._push_force_range = push_force_range
         self._push_duration_steps = push_duration_steps
@@ -56,6 +58,7 @@ class BipedBalanceEnv(MujocoEnv, utils.EzPickle):
         self._push_steps_remaining = 0
         self._current_push_force = 0.0
         self._start_x = 0.0
+        self._prev_action = None
 
         MujocoEnv.__init__(
             self,
@@ -70,6 +73,7 @@ class BipedBalanceEnv(MujocoEnv, utils.EzPickle):
         self.observation_space = Box(
             low=-np.inf, high=np.inf, shape=(obs_size,), dtype=np.float64
         )
+        self._prev_action = np.zeros(self.model.nu)
 
     def _get_obs(self):
         # drop the x position (rootx) so the policy can't just memorize an
@@ -107,13 +111,20 @@ class BipedBalanceEnv(MujocoEnv, utils.EzPickle):
 
         healthy = self._is_healthy()
         ctrl_cost = self._ctrl_cost_weight * np.sum(np.square(action))
+        # penalize jerking the action back and forth between steps, not just
+        # its raw magnitude, otherwise buzzing/vibrating in place is free as
+        # long as the average torque stays small
+        action_rate_cost = self._action_rate_cost_weight * np.sum(
+            np.square(action - self._prev_action)
+        )
+        self._prev_action = np.array(action)
         # penalize actual distance from the starting spot, not just how
         # fast it's currently drifting, otherwise a slow wander off to the
         # side is "free" as long as it's not accelerating
         position_cost = 0.5 * abs(x_after - self._start_x)
         upright_bonus = 1.0 - abs(self.data.qpos[2])
 
-        reward = 1.0 + upright_bonus - ctrl_cost - position_cost
+        reward = 1.0 + upright_bonus - ctrl_cost - action_rate_cost - position_cost
         terminated = not healthy
 
         obs = self._get_obs()
@@ -138,4 +149,5 @@ class BipedBalanceEnv(MujocoEnv, utils.EzPickle):
         self.data.xfrc_applied[:, :] = 0.0
         self._push_steps_remaining = 0
         self._start_x = qpos[0]
+        self._prev_action = np.zeros(self.model.nu)
         return self._get_obs()

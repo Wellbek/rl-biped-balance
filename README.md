@@ -24,7 +24,7 @@ If you do have an NVIDIA GPU and want CUDA acceleration, skip that step and
 just let the next command install the default GPU-enabled PyTorch build.
 
 ```bash
-pip install mujoco "gymnasium[mujoco]" stable-baselines3 tensorboard imageio
+pip install mujoco "gymnasium[mujoco]" stable-baselines3 tensorboard imageio opencv-python
 ```
 
 Note for zsh users: extras like `gymnasium[mujoco]` need to be quoted,
@@ -75,9 +75,14 @@ python scripts/view_model.py
 
 The goal is purely to stand still and stay on its feet while getting shoved, no walking. Base `Walker2d-v5` rewards walking forward fast, so wrote a custom env instead: `envs/biped_balance_env.py`, registered as `BipedBalance-v0`.
 
-- reward = stay alive + stay upright - control effort - distance strayed
-  from the starting spot. Zero reward for moving, and actual displacement
-  from start is penalized directly (not just velocity), to avoid slowly moving off the start location.
+- reward = stay alive + stay upright - control effort - action jerkiness -
+  distance strayed from the starting spot. Zero reward for moving, and
+  actual displacement from start is penalized directly (not just velocity),
+  to avoid slowly moving off the start location.
+- "action jerkiness" is a penalty on how much the motor commands change
+  between consecutive steps. Without it, the policy converges to just
+  vibrate the ankles back and forth rapidly rather than committing to a real
+  correction, since raw effort cost alone doesn't punish that.
 - episode ends if the torso drops too low or tips past a set pitch angle.
 - every so often (random, ~1 in 250 steps) a random horizontal force (our push) hits the torso for a handful of timesteps. Magnitude and
   direction are randomized each time.
@@ -99,3 +104,45 @@ for _ in range(500):
         obs, info = env.reset()
 "
 ```
+
+## Training
+
+Using PPO (Proximal Policy Optimization) from Stable-Baselines3 out of the box.
+
+```bash
+python scripts/train.py --timesteps 3000000 --n-envs 8 --run-name ppo_biped_balance_v2
+```
+
+Runs 8 environments in parallel (one per CPU core) to speed up data
+collection. Checkpoints save to `models/<run-name>.zip`, logs go to `runs/` forTensorBoard:
+
+```bash
+tensorboard --logdir runs
+```
+
+Watch `rollout/ep_len_mean` climb as episode length, i.e. how long it
+manages to stay standing before falling or the episode times out.
+
+Checkpoints save every 20k steps to `models/checkpoints/`, so you don't
+have to wait for the whole run to finish to actually see it move. To watch
+it live in the MuJoCo viewer:
+
+```bash
+python scripts/watch.py --latest-checkpoint
+```
+
+Early on it just faceplants immediately. Give it a while.
+
+This renders offscreen and displays through a resizable OpenCV window
+rather than MuJoCo's native GLFW viewer, GLFW kept segfaulting on Wayland
+here (`libdecor-gtk` plugin issue). The script forces
+`QT_QPA_PLATFORM=xcb` so OpenCV's window goes through XWayland instead,
+otherwise it hits the same missing-Wayland-plugin problem (this needs to be
+a hard override, not just a default, since some setups already export
+`QT_QPA_PLATFORM=wayland;xcb` which still breaks).
+
+It also overlays live joint angles/velocities, torso height and pitch, and
+push status directly on the video, and mirrors the same readout to the
+terminal (`--no-console` to turn that off). Useful for actually seeing what
+each hip/knee/ankle is doing when it recovers from a shove instead of just
+watching the silhouette wobble.
