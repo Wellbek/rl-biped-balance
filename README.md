@@ -153,3 +153,19 @@ push status directly on the video, and mirrors the same readout to the
 terminal (`--no-console` to turn that off). Useful for actually seeing what
 each hip/knee/ankle is doing when it recovers from a shove instead of just
 watching the silhouette wobble.
+
+### Starting / stopping a training run
+
+Just run it in the foreground and leave the terminal open:
+
+```bash
+python scripts/train.py --timesteps 3000000 --n-envs 8 --run-name ppo_biped_balance_v3
+```
+
+To stop it, `Ctrl+C` in that terminal. Whatever the most recent checkpoint
+in `models/checkpoints/` was is still there, nothing is lost except
+whatever progress happened since that last 20k-step checkpoint. There's no
+separate "pause" vs "stop", killing it is the only way to interrupt a run,
+just start a new one (with a new `--run-name`, or reusing the old one if
+overwriting is fine) whenever you want to continue.
+
